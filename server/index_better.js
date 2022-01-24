@@ -57,18 +57,6 @@ function initializeWallets(num=3) {
   }
 }
 
-/**
- * Summary: shorten public key.
- * 
- * Description: shorten public key to last 40 hexadecimal chars.
- * 
- * @param {hex} fullPubKey full public key in hex.
- */
-function shortenPubKey(fullPubKey) {
-  let hashKey = SHA256(fullPubKey);
-  console.log(hashKey);
-}
-
 //call initialize wallets
 initializeWallets();
 
@@ -79,22 +67,60 @@ app.get('/balance/:address', (req, res) => {
 });
 
 app.post('/send', (req, res) => {
-  const {amount, recipient, signature, recovery} = req.body;
-  console.log("Signature: " + signature);
+  const {amount, recipient, sender, signature} = req.body;
+  /** console.log("Signature: " + signature);
+  console.log("Recipient: " + recipient);
+  console.log("amount: " + amount);
+  console.log("sender: " + sender); */
 
   const messageHash = SHA256(JSON.stringify({
     to:recipient,
-    amount:parseInt(amount)
+    amount:amount
   })).toString();
 
-  const recoveredPublicKey = ec.recoverPubKey(messageHash, signature.toString(), parseInt(recovery));
+  //const recoveredPublicKey = ec.recoverPubKey(messageHash, signature, 0);
+  
+  const senderKey = ec.keyFromPublic(sender, 'hex');
 
-  //console.log("recovered pub key: " + recoveredPublicKey);
+  //console.log("recovered pub key: " + senderKey.getPublic().encode('hex'));
 
-  //res.send({ balance: balances[sender] });
-  res.send({ balance: 20 });
+  // validate if the sender public key is able to verify the message and it exists in the exchange
+  if(senderKey.verify(messageHash, signature) && balances[sender] && balances[recipient]) {
+    balances[sender] -= parseInt(amount);
+    balances[recipient] = (balances[recipient] || 0) + +amount;
+  }
+
+  printBalances();
+
+  res.send({ balance: balances[recipient] });
 });
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}!`);
 });
+
+
+// print balances on all accounts on the exchange
+function printBalances() {
+  //print available accounts
+  let i=0;
+  console.log("Updated Balances");
+  console.log("====================")
+  for(let key in balances){
+    i+=1;
+    console.log(`(${i}) ${key} (${balances[key]})`);
+  }
+}
+
+
+/**
+ * Summary: shorten public key.
+ * 
+ * Description: shorten public key to last 40 hexadecimal chars.
+ * 
+ * @param {hex} fullPubKey full public key in hex.
+ */
+ function shortenPubKey(fullPubKey) {
+  let hashKey = SHA256(fullPubKey);
+  console.log(hashKey);
+}

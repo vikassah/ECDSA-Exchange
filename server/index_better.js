@@ -6,7 +6,6 @@ const SHA256 = require('crypto-js/sha256');
 const EC = require('elliptic').ec;
 const ec = new EC('secp256k1');
 const { hexToBytes, concatBytes, toHex, utf8ToBytes } = require("ethereum-cryptography/utils");
-const sha256 = require('crypto-js/sha256');
 
 // localhost can have cross origin errors
 // depending on the browser you use!
@@ -80,48 +79,22 @@ app.get('/balance/:address', (req, res) => {
 });
 
 app.post('/send', (req, res) => {
-  const {amount, recipient, sender, privateKey} = req.body;
-  /**console.log(amount);
-  console.log(recipient);
-  console.log(sender);
-  console.log(privateKey); */
+  const {amount, recipient, signature, recovery} = req.body;
+  console.log("Signature: " + signature);
 
-  // sign the message
-  message = JSON.stringify({
+  const messageHash = SHA256(JSON.stringify({
     to:recipient,
     amount:parseInt(amount)
-  });
-  messageHash = SHA256(message).toString();
+  })).toString();
 
-  const key = ec.keyFromPrivate(privateKey);
+  const recoveredPublicKey = ec.recoverPubKey(messageHash, signature.toString(), parseInt(recovery));
 
-  const signature = key.sign(messageHash).toDER();
+  //console.log("recovered pub key: " + recoveredPublicKey);
 
-  const senderKey = ec.keyFromPublic(sender, 'hex');
-
-  // validate if the sender public key is able to verify the message and it exists in the exchange
-  if(senderKey.verify(messageHash, signature) && balances[sender] && balances[recipient]) {
-    balances[sender] -= parseInt(amount);
-    balances[recipient] = (balances[recipient] || 0) + +amount;
-  }
-
-  printBalances();
-
-  res.send({ balance: balances[sender] });
+  //res.send({ balance: balances[sender] });
+  res.send({ balance: 20 });
 });
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}!`);
 });
-
-
-function printBalances() {
-  //print available accounts
-  let i=0;
-  console.log("Updated Balances");
-  console.log("====================")
-  for(let key in balances){
-    i+=1;
-    console.log(`(${i}) ${key} (${balances[key]})`);
-  }
-}

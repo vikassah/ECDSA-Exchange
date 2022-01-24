@@ -1,5 +1,6 @@
 import "./index.scss";
-const secp = require("@noble/secp256k1");
+const EC = require('elliptic').ec;
+const ec = new EC('secp256k1');
 const SHA256 = require('crypto-js/sha256');
 
 const server = "http://localhost:3042";
@@ -21,34 +22,43 @@ document.getElementById("transfer-amount").addEventListener('click', () => {
   const privateKey = document.getElementById("private-key").value;
   const amount = document.getElementById("send-amount").value;
   const recipient = document.getElementById("recipient").value;
+  const sender = document.getElementById("public-key").value;
+  
   const messageHash = SHA256(JSON.stringify({
     to:recipient,
     amount:amount
   })).toString();
 
-  (async () => {
-    // use secp.sign() to produce signature and recovery bit (response is an array of two elements)
-    const signatureArray = await secp.sign(messageHash, privateKey, {
-      recovered: true
-    });
-    // separate out returned array into the string signature and the number recoveryBit
-    const signature = signatureArray[0].toString();
-    const recoveryBit = signatureArray[1];
+  const key = ec.keyFromPrivate(privateKey);
 
-    console.log("Sign: " + signature);
-    console.log("Recovery: " + recoveryBit);
+  const signature = key.sign(messageHash, {recovered:true}).toDER();
+
+  /** 
+  // use secp.sign() to produce signature and recovery bit (response is an array of two elements)
+  const signatureArray = secp.sign(messageHash, privateKey, {
+    recovered: true
+  });
+  // separate out returned array into the string signature and the number recoveryBit
+  //const signature = signatureArray[0];
+  //const recoveryBit = signatureArray[1];
+  */
+
+  console.log("Signature: " + signature);
+  //console.log("Recovery: " + recoveryBit);
     
-    const body = JSON.stringify({
-      amount, recipient, signature, recoveryBit
-    });
+  const body = JSON.stringify({
+    amount, recipient, sender, signature
+  });
 
-    const request = new Request(`${server}/send`, { method: 'POST', body });
+  console.log(body);
 
-    fetch(request, { headers: { 'Content-Type': 'application/json' }}).then(response => {
-      return response.json();
-    }).then(({ balance }) => {
-      document.getElementById("balance").innerHTML = balance;
-    });
-  })();
+  const request = new Request(`${server}/send`, { method: 'POST', body });
+
+  fetch(request, { headers: { 'Content-Type': 'application/json' }}).then(response => {
+    return response.json();
+  }).then(({ balance }) => {
+    document.getElementById("balance").innerHTML = balance;
+  });
+
 });
 
